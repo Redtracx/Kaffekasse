@@ -25,6 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
                            "QPushButton:hover { background-color: #3498db; }");
         return btn;
     })
+    , overlay(nullptr)
 {
     ui->setupUi(this);
     setupUI();
@@ -34,7 +35,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Menü-Button hinzufügen
     menuButton = new QPushButton(this);
-    menuButton->setIcon(QIcon("C:/Users/MahN/Desktop/Kaffeekasse CPP Project/assets/icon.png"));
+    menuButton->setIcon(QIcon(":/assets/icon.png"));
     menuButton->setIconSize(QSize(40, 40));
     menuButton->setStyleSheet("QPushButton { border: none; }");
     menuButton->setFixedSize(50, 50);
@@ -110,12 +111,26 @@ void MainWindow::toggleSideMenu()
 {
     if (sideMenu->isVisible()) {
         sideMenu->hide();
+        if (overlay) {
+            overlay->hide();
+            overlay->deleteLater();
+            overlay = nullptr;
+        }
     } else {
         int menuWidth = qMin(width() / 3, 250);  // Maximal 1/3 der Fensterbreite oder 250px
         sideMenu->setFixedWidth(menuWidth);
         sideMenu->setGeometry(0, menuButton->height(), menuWidth, height() - menuButton->height());
         sideMenu->show();
         sideMenu->raise();
+
+        // Erstelle und zeige den Overlay
+        overlay = new QWidget(this);
+        overlay->setGeometry(menuWidth, menuButton->height(), width() - menuWidth, height() - menuButton->height());
+        overlay->setStyleSheet("background-color: rgba(0, 0, 0, 50);"); // Halbtransparenter schwarzer Hintergrund
+        overlay->show();
+
+        // Installiere einen Event-Filter für den Overlay
+        overlay->installEventFilter(this);
     }
 }
 
@@ -284,15 +299,13 @@ void MainWindow::addEmployee()
             QMessageBox::warning(this, "Fehler", "Ein Mitarbeiter mit diesem Namen existiert bereits.");
         } else {
             employees[name] = Employee(name);
-            Action newAction = {Action::AddEmployee, name, 0};
-            newAction.timestamp = QDateTime::currentDateTime();
+            Action newAction = {Action::AddEmployee, name, 0, QDateTime::currentDateTime()};
             actions.push(newAction);
             actionHistory.append(newAction);
             QMessageBox::information(this, "Erfolg", "Mitarbeiter hinzugefügt");
         }
     }
 }
-
 void MainWindow::removeEmployee()
 {
     if (employees.isEmpty()) {
@@ -304,12 +317,10 @@ void MainWindow::removeEmployee()
     QString name = QInputDialog::getItem(this, "Mitarbeiter löschen", "Wählen Sie den Mitarbeiter:", employees.keys(), 0, false, &ok);
     if (ok && !name.isEmpty()) {
         double totalDeposits = employees[name].totalDeposits;
-        Action newAction = {Action::RemoveEmployee, name, totalDeposits};
-        newAction.timestamp = QDateTime::currentDateTime();
+        Action newAction = {Action::RemoveEmployee, name, totalDeposits, QDateTime::currentDateTime()};
         actions.push(newAction);
         actionHistory.append(newAction);
         employees.remove(name);
-        // Das Geld bleibt im Gesamtkontostand
         QMessageBox::information(this, "Erfolg", "Mitarbeiter gelöscht (Einzahlungen bleiben erhalten)");
     }
 }
@@ -328,8 +339,7 @@ void MainWindow::deposit()
         if (ok && amount > 0) {
             employees[name].totalDeposits += amount;
             totalBalance += amount;
-            Action newAction = {Action::Deposit, name, amount};
-            newAction.timestamp = QDateTime::currentDateTime();
+            Action newAction = {Action::Deposit, name, amount, QDateTime::currentDateTime()};
             actions.push(newAction);
             actionHistory.append(newAction);
             updateBalanceDisplay();
@@ -350,8 +360,7 @@ void MainWindow::withdraw()
     if (ok && amount > 0) {
         if (amount <= totalBalance) {
             totalBalance -= amount;
-            Action newAction = {Action::Withdraw, "", amount};
-            newAction.timestamp = QDateTime::currentDateTime();
+            Action newAction = {Action::Withdraw, "", amount, QDateTime::currentDateTime()};
             actions.push(newAction);
             actionHistory.append(newAction);
             updateBalanceDisplay();
@@ -735,4 +744,13 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 
     // Aktualisiere die Schriftgröße im Seitenmenü
     updateSideMenuFontSize(scaleFactor);
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == overlay && event->type() == QEvent::MouseButtonPress) {
+        toggleSideMenu();
+        return true;
+    }
+    return QMainWindow::eventFilter(watched, event);
 }

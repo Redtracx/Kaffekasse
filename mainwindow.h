@@ -60,6 +60,7 @@ private slots:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -84,6 +85,7 @@ private:
     void updateChart(QChartView *chartView, const QMap<QString, QCheckBox*> &employeeCheckboxes);
     void updateSideMenuFontSize(double scaleFactor = 1.0);
     std::function<QPushButton*(const QString&)> createMenuButton;
+    QWidget *overlay;
 };
 
 #endif // MAINWINDOW_H
